@@ -1,0 +1,9 @@
+{
+  "name": "product-availability",
+  "private": true,
+  "scripts": {
+    "start:erp": "npm --prefix apps/erp-mock run start:dev",
+    "start:api": "npm --prefix apps/api run start:dev",
+    "db:up": "docker compose up -d postgres"
+  }
+}
