@@ -13,7 +13,6 @@ export class OrdersService {
 
   async create(sku: string, quantity: number): Promise<Order> {
     await this.erp.reserve(sku, quantity);
-    const order = this.orders.create({ sku, quantity });
-    return this.orders.save(order);
+    return this.orders.save({ sku, quantity });
   }
 }

@@ -4,9 +4,7 @@ import {
   UnprocessableEntityException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
-import { AxiosError } from 'axios';
+import axios, { AxiosError, AxiosInstance } from 'axios';
 
 export interface ErpProduct {
   sku: string;
@@ -15,39 +13,36 @@ export interface ErpProduct {
   stockQuantity: number;
 }
 
+type ErpErrorData = { message: string; available: number };
+
+const ERP_ERRORS: Record<number, (e: AxiosError<ErpErrorData>) => never> = {
+  404: (e) => { throw new NotFoundException(e.response?.data?.message); },
+  422: (e) => { throw new UnprocessableEntityException({
+    message: e.response?.data?.message ?? 'Insufficient stock',
+    available: e.response?.data?.available,
+  }); },
+};
+
 @Injectable()
 export class ErpClient {
-  private readonly baseUrl = process.env.ERP_URL ?? 'http://localhost:3001';
+  private readonly http: AxiosInstance = axios.create({
+    baseURL: process.env.ERP_URL ?? 'http://localhost:3001',
+  });
 
-  constructor(private readonly http: HttpService) {}
+  constructor() {
+    this.http.interceptors.response.use(null, (err: AxiosError<ErpErrorData>) => {
+      const handler = ERP_ERRORS[err.response?.status ?? 0];
+      if (handler) handler(err);
+      throw new ServiceUnavailableException('ERP unavailable');
+    });
+  }
 
   async getProduct(sku: string): Promise<ErpProduct> {
-    return this.call(() =>
-      firstValueFrom(this.http.get<ErpProduct>(`${this.baseUrl}/erp/products/${sku}`)),
-    ).then((r) => r.data);
+    const r = await this.http.get<ErpProduct>(`/erp/products/${sku}`);
+    return r.data;
   }
 
   async reserve(sku: string, quantity: number): Promise<void> {
-    await this.call(() =>
-      firstValueFrom(
-        this.http.patch(`${this.baseUrl}/erp/products/${sku}/reserve`, { quantity }),
-      ),
-    );
-  }
-
-  private async call<T>(fn: () => Promise<T>): Promise<T> {
-    try {
-      return await fn();
-    } catch (err) {
-      const e = err as AxiosError<{ message: string; available: number }>;
-      const status = e.response?.status;
-      if (status === 404) throw new NotFoundException(e.response?.data?.message);
-      if (status === 422)
-        throw new UnprocessableEntityException({
-          message: e.response?.data?.message ?? 'Insufficient stock',
-          available: e.response?.data?.available,
-        });
-      throw new ServiceUnavailableException('ERP unavailable');
-    }
+    await this.http.patch(`/erp/products/${sku}/reserve`, { quantity });
   }
 }
