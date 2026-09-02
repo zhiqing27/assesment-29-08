@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ProductsService } from './products.service.js';
 import { Product } from './product.entity.js';
+import { ReserveProductDto } from './dtos/reserve-product.dto.js';
 
 @Controller('erp/products')
 export class ProductsController {
@@ -22,7 +23,7 @@ export class ProductsController {
 
   @Patch(':sku/reserve')
   @HttpCode(HttpStatus.OK)
-  async reserve(@Param('sku') sku: string, @Body() body: { quantity: number }) {
+  async reserve(@Param('sku') sku: string, @Body() body: ReserveProductDto) {
     const result = await this.productsService.reserve(sku, body.quantity);
     if (!result.success) {
       throw new UnprocessableEntityException({
